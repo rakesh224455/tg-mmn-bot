@@ -1,7 +1,14 @@
 import os
 from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    MessageHandler,
+    CallbackQueryHandler,
+    filters,
+    CallbackContext,
+)
 from pymongo import MongoClient
 from datetime import datetime
 
@@ -15,6 +22,7 @@ db = mongo_client.telegram_bot
 users = db.users
 orders = db.orders
 
+# Example services and prices
 prices = {
     'Hotstar Super 1 year': 699,
     'Amazon Prime 1 year': 999,
@@ -24,8 +32,9 @@ prices = {
 # Initialize the Telegram bot application
 application = Application.builder().token(TG_TOKEN).build()
 
+# Example handler (add your own logic)
 async def start(update: Update, context: CallbackContext):
-    await update.message.reply_text("🌟 Welcome! Send the name of the service you want (e.g., 'Hotstar Super 1 year').")
+    await update.message.reply_text("🌟 Welcome! Send the service name you want (e.g., 'Hotstar Super 1 year')")
 
 async def process_order(update: Update, context: CallbackContext):
     service = update.message.text.strip()
@@ -39,10 +48,8 @@ async def process_order(update: Update, context: CallbackContext):
         upsert=True
     )
     
-    keyboard = [
-        [InlineKeyboardButton("Pay via UPI", callback_data=f'payment_upi_{service}')],
-        [InlineKeyboardButton("Pay via Paytm", callback_data=f'payment_paytm_{service}')]
-    ]
+    keyboard = [[InlineKeyboardButton("Pay via UPI", callback_data=f'payment_upi_{service}')],
+                [InlineKeyboardButton("Pay via Paytm", callback_data=f'payment_paytm_{service}')]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("🔹 Select your payment method:", reply_markup=reply_markup)
 
@@ -60,33 +67,17 @@ async def handle_payment(update: Update, context: CallbackContext):
         'status': 'pending',
         'created_at': datetime.utcnow()
     }
-    result = orders.insert_one(order)
-    order_id = result.inserted_id
-    
+    orders.insert_one(order)
     if method == 'upi':
-        photo_url = "YOUR_UPI_IMAGE_LINK"
-        instructions = '''🟢 **UPI Payment Instructions**
-1. Open your UPI app.
-2. Scan the QR code above to pay.
-3. After payment, send a screenshot of the receipt here.
-4. Your login details will be delivered within 15–30 minutes after verification.
-'''
+        await query.message.reply_photo(
+            photo="YOUR_UPI_IMAGE_LINK",
+            caption="🟢 UPI Payment Instructions\n1. Open your UPI app\n2. Scan the QR code above\n3. Send payment screenshot here.")
     elif method == 'paytm':
-        photo_url = "YOUR_PAYTM_IMAGE_LINK"
-        instructions = '''🔵 **Paytm Payment Instructions**
-1. Open Paytm app.
-2. Scan the QR code above to pay.
-3. After payment, send a screenshot here.
-4. We'll deliver your login details soon.
-'''
-    else:
-        await query.message.reply_text("Invalid payment method. Please try again.")
-        return
-    
-    await query.message.reply_photo(photo_url, caption=instructions)
-    await query.message.reply_text(f"📝 Order ID: {order_id}\nService: {service}\nAmount: ₹{price}\nPayment method: {method}\n\n👉 Please send your payment screenshot for verification.")
+        await query.message.reply_photo(
+            photo="YOUR_PAYTM_IMAGE_LINK",
+            caption="🔵 Paytm Payment Instructions\n1. Open Paytm app\n2. Scan the QR code above\n3. Send payment screenshot here.")
 
-# Set up handlers
+# Add handlers
 application.add_handler(CommandHandler('start', start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, process_order))
 application.add_handler(CallbackQueryHandler(handle_payment))
@@ -101,7 +92,7 @@ async def webhook():
         json_str = request.get_data().decode('UTF-8')
         update = Update.de_json(json_str, application.bot)
         await application.update_queue.put(update)
-    return 'ok', 200
+    return '', 200
 
 if __name__ == '__main__':
-    application.run_polling()  # For local testing; use webhook for Render
+    application.run_polling()  # For local testing only; use webhook on Render
