@@ -1,9 +1,10 @@
 import os
 from flask import Flask, request
-import telebot
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Updater, CallbackContext, CommandHandler, MessageHandler
 from pymongo import MongoClient
 from datetime import datetime
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+
 
 app = Flask(__name__)
 PORT = int(os.environ.get('PORT', 8080))
