@@ -1,3 +1,4 @@
+import json
 import os
 from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -89,10 +90,12 @@ def health_check():
 @app.route('/webhook', methods=['POST'])
 async def webhook():
     if request.headers.get('content-type') == 'application/json':
-        json_str = request.get_data().decode('UTF-8')
-        update = Update.de_json(json_str, application.bot)
+        json_str = await request.get_data()                    # Get raw bytes
+        json_dict = json.loads(json_str.decode('utf-8'))       # Parse into dict
+        update = Update.de_json(json_dict, application.bot)    # Correct usage
         await application.update_queue.put(update)
     return '', 200
+
 
 if __name__ == '__main__':
     application.run_polling()  # For local testing only; use webhook on Render
