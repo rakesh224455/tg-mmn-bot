@@ -32,9 +32,15 @@ prices = {
 
 # Initialize the Telegram bot application
 application = Application.builder().token(TG_TOKEN).build()
+
 if not app.debug:
-    application.run_webhook()
-    app.teardown_appcontext(lambda ex=None: application.stop())
+    webhook_url = "https://tg-mmn-bot.onrender.com/webhook"   # Replace with your real Render URL
+    await application.bot.set_webhook(url=webhook_url)
+    application.run_webhook(
+        webhook_url=webhook_url,
+        port=int(PORT)
+    )
+
 
 
 # Example handler (add your own logic)
