@@ -1,43 +1,36 @@
 import os
 from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CallbackContext, CommandHandler, MessageHandler
+from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
 from pymongo import MongoClient
 from datetime import datetime
-
 
 app = Flask(__name__)
 PORT = int(os.environ.get('PORT', 8080))
 TG_TOKEN = os.environ.get('TG_TOKEN')
 MONGO_URI = os.environ.get('MONGO_URI')
 
-bot = telebot.TeleBot(TG_TOKEN)
-client = MongoClient(MONGO_URI)
-db = client.telegram_bot
+mongo_client = MongoClient(MONGO_URI)
+db = mongo_client.telegram_bot
 users = db.users
 orders = db.orders
 
 prices = {
     'Hotstar Super 1 year': 699,
     'Amazon Prime 1 year': 999,
-    'Zee5 1 year': 399,
-    'SonyLIV 1 year': 499,
-    'JioSaavn 3 months': 99,
-    'Gaana 1 year': 199,
+    # ... add more
 }
 
-@bot.message_handler(commands=['start'])
-def send_welcome(message):
-    reply = '''🌟 Welcome to Premium Subscriptions! 🌟
-Send me the name of the subscription you want (e.g., "Hotstar Super 1 year").
-    '''
-    bot.reply_to(message, reply)
+# Initialize the Telegram bot application
+application = Application.builder().token(TG_TOKEN).build()
 
-@bot.message_handler(func=lambda message: True)
-def process_order(message):
-    service = message.text.strip()
-    user_id = str(message.from_user.id)
-    username = message.from_user.username or message.from_user.first_name
+async def start(update: Update, context: CallbackContext):
+    await update.message.reply_text("🌟 Welcome! Send the name of the service you want (e.g., 'Hotstar Super 1 year').")
+
+async def process_order(update: Update, context: CallbackContext):
+    service = update.message.text.strip()
+    user_id = str(update.effective_user.id)
+    username = update.effective_user.username or update.effective_user.first_name
     price = prices.get(service, 0)
     
     users.update_one(
@@ -46,18 +39,17 @@ def process_order(message):
         upsert=True
     )
     
-    markup = InlineKeyboardMarkup()
-    markup.row(
-        InlineKeyboardButton("Pay via UPI", callback_data=f'payment_upi_{service}'),
-        InlineKeyboardButton("Pay via Paytm", callback_data=f'payment_paytm_{service}')
-    )
-    
-    bot.reply_to(message, "🔹 Select your payment method:", reply_markup=markup)
+    keyboard = [
+        [InlineKeyboardButton("Pay via UPI", callback_data=f'payment_upi_{service}')],
+        [InlineKeyboardButton("Pay via Paytm", callback_data=f'payment_paytm_{service}')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("🔹 Select your payment method:", reply_markup=reply_markup)
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith('payment_'))
-def handle_payment(call):
-    _, method, service = call.data.split('_', 2)
-    user_id = str(call.from_user.id)
+async def handle_payment(update: Update, context: CallbackContext):
+    query = update.callback_query
+    _, method, service = query.data.split('_', 2)
+    user_id = str(query.from_user.id)
     price = prices.get(service, 0)
     
     order = {
@@ -74,7 +66,7 @@ def handle_payment(call):
     if method == 'upi':
         photo_url = "YOUR_UPI_IMAGE_LINK"
         instructions = '''🟢 **UPI Payment Instructions**
-1. Open your UPI app (GPay, PhonePe, Paytm, etc.)
+1. Open your UPI app.
 2. Scan the QR code above to pay.
 3. After payment, send a screenshot of the receipt here.
 4. Your login details will be delivered within 15–30 minutes after verification.
@@ -88,24 +80,28 @@ def handle_payment(call):
 4. We'll deliver your login details soon.
 '''
     else:
-        bot.send_message(call.message.chat.id, "Invalid payment method. Please try again.")
+        await query.message.reply_text("Invalid payment method. Please try again.")
         return
     
-    bot.send_photo(call.message.chat.id, photo_url, caption=instructions)
-    bot.send_message(call.message.chat.id, f"📝 Order ID: {order_id}\nService: {service}\nAmount: ₹{price}\nPayment method: {method}\n\n👉 Please send your payment screenshot for verification.")
+    await query.message.reply_photo(photo_url, caption=instructions)
+    await query.message.reply_text(f"📝 Order ID: {order_id}\nService: {service}\nAmount: ₹{price}\nPayment method: {method}\n\n👉 Please send your payment screenshot for verification.")
 
-@app.route('/', methods=['GET'])
+# Set up handlers
+application.add_handler(CommandHandler('start', start))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, process_order))
+application.add_handler(CallbackQueryHandler(handle_payment))
+
+@app.route('/')
 def health_check():
     return "OK", 200
 
 @app.route('/webhook', methods=['POST'])
-def webhook():
-    json_data = request.get_json()
-    update = telebot.types.Update.de_json(json_data)
-    bot.process_new_updates([update])
+async def webhook():
+    if request.headers.get('content-type') == 'application/json':
+        json_str = request.get_data().decode('UTF-8')
+        update = Update.de_json(json_str, application.bot)
+        await application.update_queue.put(update)
     return 'ok', 200
 
 if __name__ == '__main__':
-    bot.remove_webhook()
-    bot.set_webhook(url=os.environ.get('WEBHOOK_URL', 'https://your-app-name.onrender.com/webhook'))
-    app.run(host='0.0.0.0', port=PORT)
+    application.run_polling()  # For local testing; use webhook for Render
