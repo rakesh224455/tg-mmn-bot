@@ -99,6 +99,3 @@ async def webhook():
         update = Update.de_json(json_dict, application.bot)
         await application.update_queue.put(update)
     return '', 200
-
-if __name__ == '__main__':
-      # For local testing only; use webhook on Render
