@@ -1,5 +1,5 @@
-import os
 import json
+import os
 from datetime import datetime
 from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -90,13 +90,11 @@ def health_check():
 @app.route('/webhook', methods=['POST'])
 async def webhook():
     if request.headers.get('content-type') == 'application/json':
-        json_str = request.get_data(decode=True)                # Get the raw JSON string
-        json_dict = json.loads(json_str)                        # Parse into dict
-        update = Update.de_json(json_dict, application.bot)     # Create Update object
-        await application.update_queue.put(update)              # Queue the update
+        json_str = request.get_data(as_text=True)
+        json_dict = json.loads(json_str)
+        update = Update.de_json(json_dict, application.bot)
+        await application.update_queue.put(update)
     return '', 200
-
-
 
 if __name__ == '__main__':
     application.run_polling()  # For local testing only; use webhook on Render
