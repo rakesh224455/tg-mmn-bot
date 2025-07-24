@@ -32,6 +32,10 @@ prices = {
 
 # Initialize the Telegram bot application
 application = Application.builder().token(TG_TOKEN).build()
+if not app.debug:
+    application.run_webhook()
+    app.teardown_appcontext(lambda ex=None: application.stop())
+
 
 # Example handler (add your own logic)
 async def start(update: Update, context: CallbackContext):
@@ -97,4 +101,4 @@ async def webhook():
     return '', 200
 
 if __name__ == '__main__':
-    application.run_polling()  # For local testing only; use webhook on Render
+      # For local testing only; use webhook on Render
