@@ -28,7 +28,12 @@ prices = {
     'Amazon Prime 1 year': 999,
 }
 
+
 application = Application.builder().token(TG_TOKEN).build()
+application.start()
+
+
+
 
 async def start(update: Update, context: CallbackContext):
     await update.message.reply_text("🌟 Welcome! Send the service name you want (e.g., 'Hotstar Super 1 year')")
