@@ -1,4 +1,4 @@
-python-telegram-bot[webhooks]
-Flask[async]
-pymongo
-gunicorn
+python-telegram-bot[webhooks]==22.3
+Flask[async]==3.1.1
+pymongo==4.13.2
+gunicorn==23.0.0
